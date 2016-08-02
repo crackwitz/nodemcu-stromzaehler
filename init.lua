@@ -75,16 +75,24 @@ function fetch_temp_reading(addr, callback)
 	end
 
 	-- low byte first
-	local raw = (data:byte(1) + data:byte(2) * 256)
-	local t = raw * 0.5
+	local temp_raw = (data:byte(1) + data:byte(2) * 256)
+	local temp_read = math.floor(temp_raw / 2) -- truncate
+	local count_remain = data:byte(7)
+	local count_per_c = data:byte(8)
 
-	-- print(data:byte(1,2))
+	-- 1/2 K resolution
+	local t2 = temp_raw * 0.5
+	-- 1/16 K resolution
+	local t16 = temp_read - 0.25 + (count_per_c - count_remain) / count_per_c
 
-	if raw == 0x00AA then
+	-- print(string.format("temp: %.1f %.2f", t2, t16))
+
+	if temp_raw == 0x00AA then
 		print("Temperature reads as power-on default value. Give it more time?")
+		return callback(nil)
+	else
+		return callback(t16)
 	end
-
-	return callback(t)
 end
 
 
@@ -112,7 +120,12 @@ function read_next()
 	local addr = addresses[next_address]
 
 	start_temp_reading(addr, function(tempval)
-		print("Addr " .. hexstr(addr) .. " -> " .. string.format("%.1f", tempval) .. " Celsius")
+		if tempval == nil then
+			print("Addr " .. hexstr(addr) .. " -> invalid")
+		else
+			print("Addr " .. hexstr(addr) .. " -> " .. string.format("%.2f", tempval) .. " Celsius")
+		end
+
 		tmr.alarm(owtmr, 2e3, tmr.ALARM_SINGLE, read_next)
 	end)
 
