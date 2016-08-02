@@ -1,3 +1,4 @@
 # nodemcu-ds18s20
 
-read https://nodemcu.readthedocs.io/en/dev/en/modules/ow/
+* https://nodemcu.readthedocs.io/en/dev/en/modules/ow/
+* https://datasheets.maximintegrated.com/en/ds/DS18S20.pdf
