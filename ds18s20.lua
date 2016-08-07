@@ -1,6 +1,6 @@
 -- filter(function, table)
 -- e.g: filter(is_even, {1,2,3,4}) -> {2,4}
-local function filter(tbl, func)
+function filter(func, tbl)
     local newtbl= {}
     for i,v in pairs(tbl) do
         if func(v) then
@@ -10,7 +10,23 @@ local function filter(tbl, func)
     return newtbl
 end
 
-local function is_DS18S20(addr)
+function map(func, tbl)
+    local newtbl= {}
+    for i,v in pairs(tbl) do
+    	newtbl[i]=func(v,i)
+    end
+    return newtbl
+end
+
+function hexstr(str)
+	local result = ""
+	for i = 1, #str do
+		result = result .. string.format("%02X", str:byte(i))
+	end
+	return result
+end
+
+function is_DS18S20(addr)
 	-- 64 bit string
 	-- check family code (8 bit)
 	return (addr:byte(1) == 0x10) -- or (addr:byte(1) == 0x28)
@@ -21,7 +37,7 @@ end
 
 local ds18s20 = {
 	owpin = 1,
-	owtmr = 1,
+	tmr = 6,
 	callback = nil,
 
 	convtime = 1.0, -- secs
@@ -64,7 +80,7 @@ end
 
 function ds18s20:enumerate_sensors()
 	local devices = self:enumerate_devices()
-	devices = filter(devices, is_DS18S20)
+	devices = filter(is_DS18S20, devices)
 	self.devices = devices
 	return devices
 end
@@ -84,7 +100,9 @@ function ds18s20:start()
 	local function conv_done_next(tempval)
 		local deviceaddr = self.devices[deviceindex]
 
-		self.callback(tempval, deviceindex, deviceaddr)
+		if self.callback ~= nil then
+			self.callback(tempval, deviceindex, deviceaddr)
+		end
 
 		--	if tempval == nil then
 		--		print("Sensor " .. deviceindex .. " (" .. hexstr(deviceaddr) .. ") -> invalid")
@@ -108,7 +126,7 @@ function ds18s20:start_temp_reading(deviceindex, conv_done_next)
 	-- t_CONV = 0.75s
 	-- delay of 1.0s ~ 50% failure
 	-- increase to give measurement more time
-	tmr.alarm(self.owtmr, self.convtime * 1e3, tmr.ALARM_SINGLE, function()
+	tmr.alarm(self.tmr, self.convtime * 1e3, tmr.ALARM_SINGLE, function()
 		self:fetch_temp_reading(deviceindex, conv_done_next)
 	end)
 
@@ -147,12 +165,11 @@ function ds18s20:fetch_temp_reading(deviceindex, conv_done_next)
 
 	-- print(string.format("temp: %.1f %.2f", t2, t16))
 
-	if temp_raw == 0x00AA then
-		--print("Temperature reads as power-on default value. Give it more time?")
-		return conv_done_next(nil)
-	else
-		return conv_done_next(t16)
-	end
+	--	if temp_raw == 0x00AA then
+	--		--print("Temperature reads as power-on default value. Give it more time?")
+	--		return conv_done_next(nil)
+	--	end
+	return conv_done_next(t16)
 end
 
 return ds18s20
