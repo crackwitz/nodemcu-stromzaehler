@@ -59,14 +59,39 @@ wattmeter = {
 	smoothing = 0.9,
 }
 
-graphite = {
-	server = "stats.space.aachen.ccc.de",
-	port = 2003,
-	connection = nil
-}
+--	graphite = {
+--		server = "stats.space.aachen.ccc.de",
+--		port = 2003,
+--		connection = nil,
+--		fifo = {},
+--		fifo_drained = true
+--	}
 
 ------------------------------------------------------------------------
 -- interesting code
+
+--	function graphite.init()
+--		local conn = net.createConnection(net.TCP, 0)
+--		conn:connect(graphite.port, graphite.server)
+--		graphite.connection = conn
+--		graphite.connection:on("sent", graphite.sender)
+--	end
+--	
+--	function graphite.sender()
+--		if #graphite.fifo > 0 then
+--			graphite.connection:send(table.remove(graphite.fifo, 1))
+--		else
+--			fifo_drained = true
+--		end
+--	end
+--	
+--	function graphite.send(moardata)
+--		table.insert(graphite.fifo, moardata)
+--		if graphite.fifo_drained then
+--			graphite.fifo_drained = false
+--			graphite.sender()
+--		end
+--	end
 
 function sensors.callback(temperature, devindex, devaddr)
 	local hexaddr = hexstr(devaddr)
@@ -154,7 +179,15 @@ function mqtt_onmessage(client, topic, message)
 
 	elseif topic == "electricity/smoothing" then
 		if message ~= nil then
-			wattmeter.smoothing = tonumber(message)
+			local nv = tonumber(message)
+			if nv >= 0 and nv < 1 then
+				wattmeter.smoothing = nv
+			else
+				m:publish(
+					string.format("electricity/smoothing"),
+					string.format("%g", wattmeter.smoothing),
+					0, 0)
+			end
 		end
 
 	elseif not startswith(topic, basetopic) then
@@ -204,8 +237,8 @@ function on_pulse(level)
 				string.format("electricity/power"),
 				string.format("%.3f", wattmeter.avg_power),
 				0, 0)
-			graphite.connection:send(
-				string.format("electricity.power %.3f %.3f\n", wattmeter.avg_power, now))
+			--graphite.send(
+			--	string.format("electricity.power %.3f %.3f\n", wattmeter.avg_power, now))
 		end
 	end
 
@@ -215,8 +248,8 @@ function on_pulse(level)
 		string.format("electricity/energy"),
 		string.format("%.4f", wattmeter.count),
 		0, 1) -- retain
-	graphite.connection:send(
-		string.format("electricity.energy %.4f %.3f\n", wattmeter.count, now))
+	--graphite.send(
+	--	string.format("electricity.energy %.4f %.3f\n", wattmeter.count, now))
 
 	wattmeter.lastpulse = now
 end
@@ -257,12 +290,6 @@ function mqtt_init()
 	m:connect("mqtt.space.aachen.ccc.de")
 end
 
-function graphite.init()
-	local conn = net.createConnection(net.TCP, 0)
-	conn:connect(graphite.port, graphite.server)
-	graphite.connection = conn
-end
-
 function wlan_gotip()
 	ip, mask, gateway = wifi.sta.getip()
 	print(string.format("IP:      %s", ip))
@@ -277,7 +304,7 @@ function wlan_gotip()
 			--rtctime.set(secs, usecs) -- set automatically
 		end
 	)
-	graphite.init()
+	--graphite.init()
 	mqtt_init()
 end
 
