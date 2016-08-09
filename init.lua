@@ -55,7 +55,8 @@ wattmeter = {
 	pulses_per_kwh = 1000, -- 1000 pulses per kWh
 	lastpulse = nil,
 	max_kw = nil, -- kW, to debounce pulse rate
-	avg_power = nil,
+	mean_power = nil,
+	--mean_dev = 0.0,
 	smoothing = 0.9,
 }
 
@@ -222,23 +223,29 @@ function on_pulse(level)
 			return
 		end
 
-		if wattmeter.avg_power == nil then
+		if wattmeter.mean_power == nil then
 			if kilowatts > 0.01 then
-				wattmeter.avg_power = kilowatts
+				wattmeter.mean_power = kilowatts
 			end
 		else
-			wattmeter.avg_power = wattmeter.avg_power * wattmeter.smoothing + kilowatts * (1-wattmeter.smoothing)
+			local dev = math.abs(kilowatts - wattmeter.mean_power)
+			--wattmeter.mean_dev = wattmeter.mean_dev * wattmeter.smoothing + dev * (1-wattmeter.smoothing)
+			wattmeter.mean_power = wattmeter.mean_power * wattmeter.smoothing + kilowatts * (1-wattmeter.smoothing)
 		end
 
-		--kilowatts = wattmeter.avg_power
+		--kilowatts = wattmeter.mean_power
 
-		if wattmeter.avg_power ~= nil then
+		if wattmeter.mean_power ~= nil then
 			m:publish(
 				string.format("electricity/power"),
-				string.format("%.3f", wattmeter.avg_power),
+				string.format("%.3f", wattmeter.mean_power),
 				0, 0)
-			--graphite.send(
-			--	string.format("electricity.power %.3f %.3f\n", wattmeter.avg_power, now))
+			--	m:publish(
+			--		string.format("%s/electricity/mdev", basetopic),
+			--		string.format("%.3f", wattmeter.mean_dev),
+			--		0, 0)
+			--	graphite.send(
+			--		string.format("electricity.power %.3f %.3f\n", wattmeter.mean_power, now))
 		end
 	end
 
@@ -287,7 +294,7 @@ function mqtt_init()
 		gpio.mode(wattmeter.pin, gpio.INPUT, gpio.PULLUP)
 		gpio.trig(wattmeter.pin, "down", on_pulse)
 	end)
-	m:connect("mqtt.space.aachen.ccc.de")
+	m:connect("mqtt.space.aachen.ccc.de", 1883, 0, 1) -- secure 0, autoreconnect 1
 end
 
 function wlan_gotip()
