@@ -157,7 +157,7 @@ function ds18s20:fetch_temp_reading(deviceindex, conv_done_next)
 	if temp_raw >= 0x8000 then -- signed 16 bit integer
 		temp_raw = temp_raw - 0x10000
 	end
-	local temp_read = math.floor(temp_raw / 2) -- round down towards -inf
+	local temp_read = bit.arshift(temp_raw, 1) -- "truncate" lowest bit
 	local count_remain = data:byte(7)
 	local count_per_c = data:byte(8)
 
