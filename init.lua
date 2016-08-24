@@ -52,6 +52,7 @@ wattmeter = {
 	pin = 1, -- GPIO 10 = SD3
 	-- ./wattmeter/pulses-per-kWh
 	count = 0.0, -- kWh
+	is_absolute = false, -- becomes true if there's a reference (non-empty message) to go on
 	pulses_per_kwh = 1000, -- 1000 pulses per kWh
 	lastpulse = nil,
 	max_kw = nil, -- kW, to debounce pulse rate
@@ -162,7 +163,9 @@ function mqtt_onmessage(client, topic, message)
 	elseif topic == "electricity/energy" or topic == "electricity/energy/set" then
 		if message ~= nil then
 			local newcount = tonumber(message)
-			if math.abs(newcount - wattmeter.count) > (2/wattmeter.pulses_per_kwh) then
+			if (wattmeter.count == nil) or (math.abs(newcount - wattmeter.count) > (2/wattmeter.pulses_per_kwh)) then
+				print(string.format("setting wattmeter to %.4f kWh", newcount))
+				wattmeter.is_absolute = true
 				wattmeter.lastpulse = nil
 				wattmeter.count = newcount
 			end
@@ -251,12 +254,14 @@ function on_pulse(level)
 
 	wattmeter.count = wattmeter.count + increment -- [kWh]
 
-	m:publish(
-		string.format("electricity/energy"),
-		string.format("%.4f", wattmeter.count),
-		0, 1) -- retain
-	--graphite.send(
-	--	string.format("electricity.energy %.4f %.3f\n", wattmeter.count, now))
+	if wattmeter.is_absolute then
+		m:publish(
+			string.format("electricity/energy"),
+			string.format("%.4f", wattmeter.count),
+			0, 1) -- retain
+		--graphite.send(
+		--	string.format("electricity.energy %.4f %.3f\n", wattmeter.count, now))
+	end
 
 	wattmeter.lastpulse = now
 end
