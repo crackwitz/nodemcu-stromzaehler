@@ -34,7 +34,7 @@ telnet = require "telnet"
 ------------------------------------------------------------------------
 -- hard config values
 
-nodname = "cracki-nodemcu-2" -- mqtt
+nodename = "cracki-nodemcu-2" -- mqtt
 
 basetopic = "cracki/nodemcu-2" -- mqtt
 
