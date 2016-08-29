@@ -3,19 +3,21 @@ local telnet = {}
 function telnet.start()
 	telnet_srv = net.createServer(net.TCP, 180)
 	telnet_srv:listen(2323, function(socket)
-		local fifo = {}
+		local fifo = ""
 		local fifo_drained = true
 
 		local function sender(c)
 			if #fifo > 0 then
-				c:send(table.remove(fifo, 1))
+				c:send(fifo)
+				fifo = ""
 			else
 				fifo_drained = true
 			end
 		end
 
 		local function s_output(str)
-			table.insert(fifo, str)
+			fifo = fifo .. str
+			--table.insert(fifo, str)
 			if socket ~= nil and fifo_drained then
 				fifo_drained = false
 				sender(socket)
@@ -30,7 +32,7 @@ function telnet.start()
 		socket:on("disconnection", function(c)
 			node.output(nil)        -- un-regist the redirect output function, output goes to serial
 		end)
-		socket:on("sent", sender)
+		socket:on("sent", sender) -- send more
 
 		print(">")
 	end)
