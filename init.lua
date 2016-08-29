@@ -34,9 +34,9 @@ telnet = require "telnet"
 ------------------------------------------------------------------------
 -- hard config values
 
-nodename = "cracki-nodemcu-2" -- mqtt
+nodename = "cracki-nodemcu-stromzaehler" -- mqtt
 
-basetopic = "cracki/nodemcu-2" -- mqtt
+basetopic = "cracki/nodemcu-stromzaehler" -- mqtt
 
 sensors = ds18s20:new {
 	owpin = 5,
@@ -96,23 +96,31 @@ wattmeter = {
 --	end
 
 function sensors.callback(temperature, devindex, devaddr)
+	if mqtt_client == nil then
+		return
+	end
+
+	if temperature == nil then
+		return
+	end
+
 	local hexaddr = hexstr(devaddr)
 
 	--print(string.format("Sensor %d (%s): %.2f Celsius",
 	--	devindex, hexaddr, temperature or 0.0))
 
-	m:publish(
+	mqtt_client:publish(
 		string.format("%s/devices/%s/temperature", basetopic, hexaddr),
 		string.format("%.2f", temperature or 0.0),
 		0, 0)
 
 	for k,v in pairs(mapping) do
 		if k == hexaddr then
-			m:publish(
+			mqtt_client:publish(
 				string.format("sensors/%s/temperature", v),
 				string.format("%.2f", temperature or 0.0),
 				0, 0)
-			--	m:publish(
+			--	mqtt_client:publish(
 			--		string.format("sensors/%s/temperature/_origin", v),
 			--		string.format("%s", nodename),
 			--		0, 0)
@@ -133,10 +141,12 @@ function update_devicelist()
 		devicestr = "(none)"
 	end
 
-	m:publish(
-		string.format("%s/devices", basetopic),
-		devicestr,
-		0, 1)
+	if mqtt_client ~= nil then
+		mqtt_client:publish(
+			string.format("%s/devices", basetopic),
+			devicestr,
+			0, 1)
+	end
 end
 
 function start_sensing(interval)
@@ -150,7 +160,6 @@ end
 
 function mqtt_onmessage(client, topic, message)
 	--print("received: " .. topic .. " -> " .. (message or "(nil)"))
-
 
 	if topic == basetopic .. "/restart" then
 		node.restart()
@@ -187,7 +196,7 @@ function mqtt_onmessage(client, topic, message)
 			if nv >= 0 and nv < 1 then
 				wattmeter.smoothing = nv
 			else
-				m:publish(
+				mqtt_client:publish(
 					string.format("electricity/smoothing"),
 					string.format("%g", wattmeter.smoothing),
 					0, 0)
@@ -238,12 +247,12 @@ function on_pulse(level)
 
 		--kilowatts = wattmeter.mean_power
 
-		if wattmeter.mean_power ~= nil then
-			m:publish(
+		if wattmeter.mean_power ~= nil and mqtt_client ~= nil then
+			mqtt_client:publish(
 				string.format("electricity/power"),
 				string.format("%.3f", wattmeter.mean_power),
 				0, 0)
-			--	m:publish(
+			--	mqtt_client:publish(
 			--		string.format("%s/electricity/mdev", basetopic),
 			--		string.format("%.3f", wattmeter.mean_dev),
 			--		0, 0)
@@ -254,8 +263,8 @@ function on_pulse(level)
 
 	wattmeter.count = wattmeter.count + increment -- [kWh]
 
-	if wattmeter.is_absolute then
-		m:publish(
+	if wattmeter.is_absolute and mqtt_client ~= nil then
+		mqtt_client:publish(
 			string.format("electricity/energy"),
 			string.format("%.4f", wattmeter.count),
 			0, 1) -- retain
@@ -274,50 +283,64 @@ end
 ------------------------------------------------------------------------
 -- startup
 
-m = mqtt.Client(nodename, 10, nil, nil)
-
 function mqtt_init()
-	print("initializing mqtt")
-	m:lwt(basetopic .. "/status", "offline", 0, 1)
-	m:on("message", mqtt_onmessage)
-	m:on("connect", function(client)
-		print("mqtt connected")
+	mqtt_client = mqtt.Client(nodename, 10, nil, nil)
+	
+	--print("initializing mqtt")
+	mqtt_client:lwt(basetopic .. "/status", "offline", 0, 1)
+	mqtt_client:on("message", mqtt_onmessage)
+	mqtt_client:on("connect", function(client)
+		--print("mqtt connected")
 		--print("Subscribing")
-		--m:subscribe(basetopic .. "/#", 0) -- HAS TO COME FIRST, only first subscription receives retained messages
-		--m:subscribe("runlevel", 0)
-		m:subscribe {
+		--mqtt_client:subscribe(basetopic .. "/#", 0) -- HAS TO COME FIRST, only first subscription receives retained messages
+		--mqtt_client:subscribe("runlevel", 0)
+		mqtt_client:subscribe {
 			["runlevel"] = 0,
 			[basetopic .. "/#"] = 0,
 			["electricity/#"] = 0,
 		}
 
-		m:publish(basetopic .. "/status", "online", 0, 1)
-		m:publish(basetopic .. "/ip", ip, 0, 1)
-
-		telnet.start()
-
-		gpio.mode(wattmeter.pin, gpio.INPUT, gpio.PULLUP)
-		gpio.trig(wattmeter.pin, "down", on_pulse)
+		mqtt_client:publish(basetopic .. "/status", "online", 0, 1)
+		mqtt_client:publish(basetopic .. "/ip", ip, 0, 1)
+		if mdns ~= nil then
+			mqtt_client:publish(basetopic .. "/mdns", nodename, 0, 1)
+		end
 	end)
-	m:connect("mqtt.space.aachen.ccc.de", 1883, 0, 1) -- secure 0, autoreconnect 1
+	mqtt_client:close()
+	mqtt_client:connect("mqtt.space.aachen.ccc.de", 1883, 0, 1) -- secure 0, autoreconnect 1
 end
 
 function wlan_gotip()
 	ip, mask, gateway = wifi.sta.getip()
-	print(string.format("IP:      %s", ip))
-	print(string.format("Mask:    %s", mask))
-	print(string.format("Gateway: %s", gateway))
+	--print(string.format("IP:      %s", ip))
+	--print(string.format("Mask:    %s", mask))
+	--print(string.format("Gateway: %s", gateway))
+
+	telnet.start()
 
 	sntp.sync(
 		"ptbtime1.ptb.de",
 		function(secs, usecs, server)
-			print("Time Sync", secs, usecs, server)
-			m:publish(basetopic .. "/started", string.format("%d.%06d", secs, usecs), 0, 1)
-			--rtctime.set(secs, usecs) -- set automatically
+			--print("Time Sync", secs, usecs, server)
+			wattmeter.lastpulse = nil
+			wattmeter.mean_power = nil
+			if mqtt_client ~= nil then
+				mqtt_client:publish(basetopic .. "/started", string.format("%d.%06d", secs, usecs), 0, 1)
+			end
 		end
 	)
 	--graphite.init()
 	mqtt_init()
+
+	if mdns ~= nil then
+		mdns.register(nodename, {
+			port=2323,
+			service="telnet",
+			description="Lua REPL",
+			hardware="NodeMCU",
+			location="Serverraum"
+		})
+	end
 end
 
 function wlan_init()
@@ -327,5 +350,10 @@ function wlan_init()
 	wifi.sta.eventMonReg(wifi.STA_GOTIP, wlan_gotip)
 	wifi.sta.eventMonStart()
 end
+
+rtctime.set(0, 0)
+
+gpio.mode(wattmeter.pin, gpio.INPUT, gpio.PULLUP)
+gpio.trig(wattmeter.pin, "down", on_pulse)
 
 wlan_init()
