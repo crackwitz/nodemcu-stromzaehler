@@ -71,7 +71,7 @@ function ds18s20:enumerate_devices()
 		if crc == addr:byte(8) then
 			table.insert(result, addr)
 		else
-			print("Invalid CRC: " .. hexstr(addr))
+			--print("Invalid CRC: " .. hexstr(addr))
 		end
 	end
 
@@ -148,7 +148,7 @@ function ds18s20:fetch_temp_reading(deviceindex, conv_done_next)
 	-- print("CRC=" .. crc)
 
 	if crc ~= data:byte(9) then
-		print("CRC doesn't match!")
+		--print("CRC doesn't match!")
 		return conv_done_next(nil)
 	end
 
@@ -168,10 +168,10 @@ function ds18s20:fetch_temp_reading(deviceindex, conv_done_next)
 
 	-- print(string.format("temp: %.1f %.2f", t2, t16))
 
-	--	if temp_raw == 0x00AA then
-	--		--print("Temperature reads as power-on default value. Give it more time?")
-	--		return conv_done_next(nil)
-	--	end
+	if temp_raw == 0x00AA then
+		--print("Temperature reads as power-on default value. Give it more time?")
+		return conv_done_next(nil)
+	end
 	return conv_done_next(t16)
 end
 
