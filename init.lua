@@ -16,11 +16,15 @@
 	-> /sensors/<name>/temperature
 
 
-electricity/power (R)
-electricity/energy (R) -- settable
+electricity/energy (R) -- will be read once on startup
+electricity/energy/set -- to set the value
+electricity/power -- average per interval (suitable for graphite)
+electricity/power/min -- min per interval
+electricity/power/max -- max per interval
+electricity/power/raw -- instantaneous data
 electricity/pulses-per-kWh (R) -- critical!
 electricity/max-kW (R) -- for debouncing, but not really needed
-
+electricity/avg-period (R) -- for synchronisation with graphite, default 5 minutes
 
 
 --]]
@@ -51,11 +55,19 @@ intervaltmr = 5 -- timer number
 wattmeter = {
 	pin = 1, -- GPIO 10 = SD3
 	-- ./wattmeter/pulses-per-kWh
+
+	period = 5*60,
+	count_2 = nil, -- count at boundary before that
+	count_1 = nil, -- count at previous multiple of interval (shifted after half an interval and updated from current value, until post has passed)
 	count = 0.0, -- kWh
+	-- interval number = floor(now() / period)
+	-- intervals shift when round(now() / period) changes
+
 	is_absolute = false, -- becomes true if there's a reference (non-empty message) to go on
 	pulses_per_kwh = 1000, -- 1000 pulses per kWh
-	lastpulse = nil,
 	max_kw = nil, -- kW, to debounce pulse rate
+
+	lastpulse = nil,
 	mean_power = nil,
 	--mean_dev = 0.0,
 	smoothing = 0.9,
@@ -158,6 +170,15 @@ function start_sensing(interval)
 	end
 end
 
+function set_energy(newcount)
+	if (wattmeter.count == nil) or (math.abs(newcount - wattmeter.count) > (2/wattmeter.pulses_per_kwh)) then
+		print(string.format("setting wattmeter to %.4f kWh", newcount))
+		wattmeter.is_absolute = true
+		wattmeter.lastpulse = nil
+		wattmeter.count = newcount
+	end
+end
+
 function mqtt_onmessage(client, topic, message)
 	--print("received: " .. topic .. " -> " .. (message or "(nil)"))
 
@@ -169,15 +190,15 @@ function mqtt_onmessage(client, topic, message)
 		print("setting interval to " .. interval .. " secs")
 		start_sensing(interval)
 
-	elseif topic == "electricity/energy" or topic == "electricity/energy/set" then
+
+	elseif topic == "electricity/energy" then
+		if not wattmeter.is_absolute and message ~= nil then
+			set_energy(tonumber(message))
+		end
+
+	elseif topic == "electricity/energy/set" then
 		if message ~= nil then
-			local newcount = tonumber(message)
-			if (wattmeter.count == nil) or (math.abs(newcount - wattmeter.count) > (2/wattmeter.pulses_per_kwh)) then
-				print(string.format("setting wattmeter to %.4f kWh", newcount))
-				wattmeter.is_absolute = true
-				wattmeter.lastpulse = nil
-				wattmeter.count = newcount
-			end
+			set_energy(tonumber(message))
 		end
 
 	elseif topic == "electricity/pulses-per-kWh" then
