@@ -86,13 +86,19 @@ function Wattmeter:time_changed()
 end
 
 function Wattmeter:period_rollover(newindex)
+	local valid_rollover = nil
+	if newindex == nil or self.period_index == nil or newindex - self.period_index ~= 1 then
+		print(string.format("WARNING: period rollover from %d to %d (delta %+d)",
+			self.periodindex or -1,
+			newindex or -1,
+			(newindex or -1) - (self.periodindex or -1)))
+		valid_rollover = false
+	else
+		valid_rollover = true
+	end
+
 	-- period is valid?
 	if self.period_energy_min ~= nil then
-
-		if newindex ~= nil and self.period_index ~= nil and newindex - self.period_index ~= 1 then
-			print(string.format("WARNING: period rollover from %d to %d (delta %+d)", self.periodindex, newindex, newindex - self.periodindex))
-		end
-
 		local dE = self.energy - self.period_energy_min
 		-- self.energy will become period_energy_min of current period (see below)
 
@@ -112,8 +118,13 @@ function Wattmeter:period_rollover(newindex)
 		end
 	end
 
+	if valid_rollover then
+		self.period_energy_min = self.energy
+	else
+		self.period_energy_min = nil
+	end
+
 	self.period_index = newindex
-	self.period_energy_min = self.energy
 	self.period_power_min = nil
 	self.period_power_max = nil
 end
