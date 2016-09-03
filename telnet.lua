@@ -1,6 +1,6 @@
-local telnet = {}
+Telnet = {}
 
-function telnet.start()
+function Telnet.start()
 	telnet_srv = net.createServer(net.TCP, 180)
 	telnet_srv:listen(2323, function(socket)
 		local fifo = ""
@@ -38,4 +38,4 @@ function telnet.start()
 	end)
 end
 
-return telnet
+return Telnet

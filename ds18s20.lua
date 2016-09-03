@@ -1,32 +1,6 @@
--- filter(function, table)
--- e.g: filter(is_even, {1,2,3,4}) -> {2,4}
-function filter(func, tbl)
-    local newtbl= {}
-    for i,v in pairs(tbl) do
-        if func(v) then
-            newtbl[i]=v
-        end
-    end
-    return newtbl
-end
+require "funcs"
 
-function map(func, tbl)
-    local newtbl= {}
-    for i,v in pairs(tbl) do
-    	newtbl[i]=func(v,i)
-    end
-    return newtbl
-end
-
-function hexstr(str)
-	local result = ""
-	for i = 1, #str do
-		result = result .. string.format("%02X", str:byte(i))
-	end
-	return result
-end
-
-function is_DS18S20(addr)
+local function is_DS18S20(addr)
 	-- 64 bit string
 	-- check family code (8 bit)
 	return (addr:byte(1) == 0x10) -- or (addr:byte(1) == 0x28)
@@ -34,8 +8,7 @@ function is_DS18S20(addr)
 	-- upper 8 bit is CRC
 end
 
-
-local ds18s20 = {
+DS18S20 = {
 	owpin = 1,
 	tmr = 6,
 	callback = nil,
@@ -44,16 +17,16 @@ local ds18s20 = {
 	devices = {},
 	deviceindex = 1 -- wraps around
 }
-ds18s20.__index = ds18s20
+DS18S20.__index = DS18S20
 
-function ds18s20:new(obj)
+function DS18S20:new(obj)
 	obj = obj or {}   -- create object if user does not provide one
 	setmetatable(obj, self)
 	obj:enumerate_sensors()
 	return obj
 end
 
-function ds18s20:enumerate_devices()
+function DS18S20:enumerate_devices()
 	ow.setup(self.owpin)
 	ow.reset_search(self.owpin)
 
@@ -78,14 +51,14 @@ function ds18s20:enumerate_devices()
 	return result
 end
 
-function ds18s20:enumerate_sensors()
+function DS18S20:enumerate_sensors()
 	local devices = self:enumerate_devices()
 	devices = filter(is_DS18S20, devices)
 	self.devices = devices
 	return devices
 end
 
-function ds18s20:start()
+function DS18S20:start()
 	-- print("read next: index " .. deviceindex)
 
 	local deviceindex = self.deviceindex
@@ -117,7 +90,7 @@ function ds18s20:start()
 
 end
 
-function ds18s20:start_temp_reading(deviceindex, conv_done_next)
+function DS18S20:start_temp_reading(deviceindex, conv_done_next)
 	-- print("Reading from deviceaddr " .. hexstr(deviceaddr))
 	ow.reset(self.owpin)
 	ow.select(self.owpin, self.devices[deviceindex]) -- rom select
@@ -133,7 +106,7 @@ function ds18s20:start_temp_reading(deviceindex, conv_done_next)
 	-- print("read initialized, waiting...?")
 end
 
-function ds18s20:fetch_temp_reading(deviceindex, conv_done_next)
+function DS18S20:fetch_temp_reading(deviceindex, conv_done_next)
 	local deviceaddr = self.devices[deviceindex]
 
 	local present = ow.reset(self.owpin) -- should not return anything
@@ -175,4 +148,4 @@ function ds18s20:fetch_temp_reading(deviceindex, conv_done_next)
 	return conv_done_next(t16)
 end
 
-return ds18s20
+return DS18S20
