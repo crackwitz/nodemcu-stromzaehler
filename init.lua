@@ -51,16 +51,6 @@ function mqtt_onmessage(client, topic, message)
 	if topic == basetopic .. "/restart" then
 		node.restart()
 
-	elseif topic == basetopic .. "/interval" then
-		if message ~= nil then
-			local interval = tonumber(message)
-			print("setting interval to " .. interval .. " secs")
-			if start_sensing ~= nil then
-				start_sensing(interval)
-			end
-		end
-
-
 	elseif topic == "electricity/energy" then
 		if not wattmeter.is_absolute and message ~= nil then
 			wattmeter:set_energy(tonumber(message))
@@ -86,18 +76,6 @@ function mqtt_onmessage(client, topic, message)
 	elseif not startswith(topic, basetopic) then
 		return
 
-	elseif topic == basetopic .. "/devices" then
-		if message == nil then
-			update_devicelist()
-		end
-
-	else
-		local pattern = string.format("devices/(.*)/map$", basetopic)
-		local key = string.match(topic, pattern)
-		if key ~= nil then
-			mapping[key] = message
-			print(string.format("mapping %s -> %s", key, message or "(nil)"))
-		end
 	end
 end
 
