@@ -5,9 +5,10 @@ electricity/energy (R) -- start from here; will be ignored after startup
 electricity/energy/set -- to set the value after startup
 electricity/avg-period (R) -- for synchronisation with graphite, default 5 minutes
 electricity/power -- dE/dt between pulses
+electricity/power/10 -- average over 10 pulses
 electricity/power/min -- min per interval
 electricity/power/max -- max per interval
-electricity/power/mean -- average over 10 pulses
+electricity/power/mean -- average per interval
 electricity/pulses-per-kWh (R) -- critical!
 electricity/max-kW (R) -- for debouncing, but not really needed
 

@@ -1,5 +1,5 @@
 Graphite = {
-	server = "mqtt",
+	server = "graphite",
 	port = 2003,
 	connection = nil,
 	fifo = {},

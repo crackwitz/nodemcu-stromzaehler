@@ -60,6 +60,8 @@ end
 function Wattmeter:set_energy(energy)
 	self.energy = energy
 	self.is_absolute = true
+	self.period_energy_min = nil
+	self.period_index = nil
 end
 
 function Wattmeter:get_period_index()
