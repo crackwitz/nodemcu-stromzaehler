@@ -128,6 +128,11 @@ local function nonnil_binop(binop, a, b)
 	end
 end
 
+local function tmrdiff(t0, t1)
+	local delta = (t1 - t0) % 2^31
+	return delta * 1e-6
+end
+
 function Wattmeter:on_pulse()
 	local tmrnow = tmr.now() -- [us]
 
@@ -138,8 +143,7 @@ function Wattmeter:on_pulse()
 	local dt = nil
 	local power = nil
 	if self.lastpulse ~= nil then
-		dt = (tmrnow - self.lastpulse) % 2^31 -- [us]
-		dt = dt * 1e-6 -- [seconds]
+		dt = tmrdiff(self.lastpulse, tmrnow) -- [seconds]
 		power = increment * 3600 / dt
 
 		if self.max_kw ~= nil and power > self.max_kw then
@@ -176,7 +180,7 @@ function Wattmeter:on_pulse()
 		local windowlen = #self.pulse_history
 		if windowlen >= self.window+1 then
 			local dE = (windowlen - 1) * increment
-			local dt = (self.pulse_history[windowlen] - self.pulse_history[1]) * 1e-6
+			local dt = tmrdiff(self.pulse_history[1], self.pulse_history[windowlen])
 			power_windowed = dE * 3600 / dt
 			self.pulse_history = { self.pulse_history[windowlen] }
 		end
