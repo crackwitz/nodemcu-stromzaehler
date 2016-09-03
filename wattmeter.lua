@@ -6,7 +6,7 @@ Wattmeter = {
 	pulses_per_kwh = 1000, -- 1000 pulses per kWh
 	lastpulse = nil, -- tmr.now() in microsecs [0..2^31), wraps around every 2^31 microsecs (36 minutes)
 	energy = 0.0, -- kWh
-	energy_history = {}, -- window+1 values
+	pulse_history = {}, -- window+1 values of microsecond timestamps
 
 	max_kw = nil, -- kW, to debounce pulse rate, optional
 
@@ -30,7 +30,7 @@ function Wattmeter:new(obj)
 	obj = obj or {}   -- create object if user does not provide one
 	setmetatable(obj, self)
 
-	self.install_gpio_trigger()
+	obj:install_gpio_trigger()
 
 	return obj
 end
@@ -46,7 +46,9 @@ function Wattmeter:install_gpio_trigger(newpin)
 	if self.pin ~= nil then
 		gpio.mode(self.pin, gpio.INPUT, gpio.PULLUP)
 		gpio.trig(self.pin, "down",
-			function() self:on_pulse() end)
+			function(level)
+				self:on_pulse()
+			end)
 	end
 end
 
@@ -60,7 +62,7 @@ function Wattmeter:set_energy(energy)
 	self.is_absolute = true
 end
 
-function Wattmeter:get_period_interval()
+function Wattmeter:get_period_index()
 	if self.period_interval == nil then
 		return nil
 	end
@@ -75,7 +77,7 @@ end
 
 function Wattmeter:time_changed()
 	-- reset period
-	self.period_index = self:get_period_interval()
+	self.period_index = self:get_period_index()
 
 	-- invalidate period, so nothing takes this as a reference
 	self.period_energy_min = nil -- this is important, will be set on next rollover
@@ -83,14 +85,14 @@ end
 
 function Wattmeter:period_rollover(newindex)
 	-- period is valid?
-	if self.energy_min ~= nil then
+	if self.period_energy_min ~= nil then
 
 		if newindex ~= nil and self.period_index ~= nil and newindex - self.period_index ~= 1 then
 			print(string.format("WARNING: period rollover from %d to %d (delta %+d)", self.periodindex, newindex, newindex - self.periodindex))
 		end
 
 		local dE = self.energy - self.period_energy_min
-		-- self.energy will become energy_min of current period (see below)
+		-- self.energy will become period_energy_min of current period (see below)
 
 		local period_center = nil
 		if self.period_index ~= nil and self.period_interval ~= nil then
@@ -100,7 +102,7 @@ function Wattmeter:period_rollover(newindex)
 		if period_center ~= nil then
 			self.period_cb(
 				period_center, -- [seconds]
-				self.is_absolute and self.energy_max or nil, -- [kWh]
+				self.is_absolute and self.period_energy_max or nil, -- [kWh]
 				self.period_power_min, -- [kW]
 				self.period_power_max, -- [kW]
 				dE * 3600 / self.period_interval -- [kW]
@@ -149,9 +151,9 @@ function Wattmeter:on_pulse()
 	self.lastpulse = tmrnow
 
 	-- update moving window
-	table.insert(self.energy_history, self.energy)
-	while #self.energy_history > self.window+1 do
-		table.remove(self.energy_history, 1)
+	table.insert(self.pulse_history, tmrnow)
+	while #self.pulse_history > self.window+1 do
+		table.remove(self.pulse_history, 1)
 	end
 
 	-- update stats for period
@@ -160,7 +162,7 @@ function Wattmeter:on_pulse()
 	self.period_power_max = nonnil_binop(math.max, self.period_power_max, power)
 
 	-- rollover of period?
-	local new_period_index = self:get_period_interval()
+	local new_period_index = self:get_period_index()
 	if new_period_index ~= self.period_index then
 		self:period_rollover(new_period_index)
 	end
@@ -169,10 +171,11 @@ function Wattmeter:on_pulse()
 	if self.pulse_cb ~= nil then
 		-- compute power over window
 		local power_windowed = nil
-		local windowlen = #self.energy_history
+		local windowlen = #self.pulse_history
 		if windowlen > 1 then
-			local dE = self.energy_history[windowlen] - self.energy_history[1]
-			power_windowed = dE / (windowlen-1)
+			local dE = (windowlen - 1) * increment
+			local dt = (self.pulse_history[windowlen] - self.pulse_history[1]) * 1e-6
+			power_windowed = dE * 3600 / dt
 		end
 
 		-- per-pulse callback
