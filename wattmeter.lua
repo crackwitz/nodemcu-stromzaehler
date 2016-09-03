@@ -152,9 +152,9 @@ function Wattmeter:on_pulse()
 
 	-- update moving window
 	table.insert(self.pulse_history, tmrnow)
-	while #self.pulse_history > self.window+1 do
-		table.remove(self.pulse_history, 1)
-	end
+	--while #self.pulse_history > self.window+1 do
+	--	table.remove(self.pulse_history, 1)
+	--end
 
 	-- update stats for period
 	self.period_energy_max = self.energy
@@ -172,10 +172,11 @@ function Wattmeter:on_pulse()
 		-- compute power over window
 		local power_windowed = nil
 		local windowlen = #self.pulse_history
-		if windowlen > 1 then
+		if windowlen >= self.window+1 then
 			local dE = (windowlen - 1) * increment
 			local dt = (self.pulse_history[windowlen] - self.pulse_history[1]) * 1e-6
 			power_windowed = dE * 3600 / dt
+			self.pulse_history = { self.pulse_history[windowlen] }
 		end
 
 		-- per-pulse callback
