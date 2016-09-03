@@ -44,8 +44,6 @@ mqtt_client = nil -- init below, after wifi
 ------------------------------------------------------------------------
 -- interesting code (callbacks)
 
-
-
 function mqtt_onmessage(client, topic, message)
 	--print("received: " .. topic .. " -> " .. (message or "(nil)"))
 
@@ -98,7 +96,7 @@ function wattmeter.pulse_cb(energy, power, power_windowed)
 		if power_windowed ~= nil then
 			mqtt_client:publish(
 				string.format("electricity/power/%d", wattmeter.window),
-				string.format("%.3f", power_windowed),
+				string.format("%.4f", power_windowed),
 				0, 0)
 		end
 	end
