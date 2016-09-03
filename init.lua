@@ -95,7 +95,7 @@ function wattmeter.pulse_cb(energy, power, power_windowed)
 		end
 		if power_windowed ~= nil then
 			mqtt_client:publish(
-				string.format("electricity/power/%d", wattmeter.window),
+				string.format("electricity/power/%skWh", wattmeter:get_increment() * wattmeter.window),
 				string.format("%.4f", power_windowed),
 				0, 0)
 		end
