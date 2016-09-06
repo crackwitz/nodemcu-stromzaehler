@@ -78,7 +78,7 @@ function mqtt_onmessage(client, topic, message)
 	end
 end
 
-function wattmeter.pulse_cb(dt, energy, power, power_windowed)
+function wattmeter.pulse_cb(dt, energy, power, round_increments)
 	if mqtt_client ~= nil then
 		if dt ~= nil then
 			mqtt_client:publish(
@@ -99,11 +99,14 @@ function wattmeter.pulse_cb(dt, energy, power, power_windowed)
 				string.format("%.3f", power),
 				0, 0)
 		end
-		if power_windowed ~= nil then
-			mqtt_client:publish(
-				string.format("electricity/power/%skWh", wattmeter:get_increment() * wattmeter.window),
-				string.format("%.4f", power_windowed),
-				0, 0)
+
+		if round_increments ~= nil then
+			for inc,dt in pairs(round_increments) do
+				mqtt_client:publish(
+					string.format("electricity/power/%skWh", inc),
+					string.format("%.4f", inc * 3600 / dt),
+					0, 0)
+			end
 		end
 	end
 end
@@ -133,7 +136,7 @@ function wattmeter.period_cb(period, energy_max, power_min, power_max, power_mea
 			0, 0)
 		mqtt_client:publish(
 			"electricity/power/mean",
-			string.format("%.3f", power_mean),
+			string.format("%.3f", power_mean), -- pulsecount * 3600 / 300 ~> 0.012 kW resolution
 			0, 0)
 	end
 end

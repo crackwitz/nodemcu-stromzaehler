@@ -28,3 +28,6 @@ function hexstr(str)
 	return result
 end
 
+function round(x)
+    return math.floor(x + 0.5)
+end

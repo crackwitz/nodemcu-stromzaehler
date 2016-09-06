@@ -1,11 +1,18 @@
+require 'funcs'
+
 Wattmeter = {
 	pin = nil, -- for gpio.trig() on falling edge
 
-	window = 10,
 	is_absolute = false, -- becomes true if energy was set to something absolute
 	pulses_per_kwh = 1000, -- 1000 pulses per kWh
 	lastpulse = nil, -- tmr.now() in microsecs [0..2^31), wraps around every 2^31 microsecs (36 minutes)
 	energy = 0.0, -- kWh
+	last_round = { -- index = math.round(energy / increment)
+		  [10] = 0, -- timestamp
+		 [100] = 0,
+		[1000] = 0,
+	},
+	window = 10,
 	pulse_history = {}, -- window+1 values of microsecond timestamps
 
 	max_kw = nil, -- kW, to debounce pulse rate, optional
@@ -62,6 +69,14 @@ function Wattmeter:set_energy(energy)
 	self.is_absolute = true
 	self.period_energy_min = nil
 	self.period_index = nil
+	for k,v in pairs(self.last_round) do
+		self.last_round[k] = 0
+	end
+end
+
+local function rtc_now()
+	local now, unow = rtctime.get()
+	return now + unow * 1e-6
 end
 
 function Wattmeter:get_period_index()
@@ -69,11 +84,10 @@ function Wattmeter:get_period_index()
 		return nil
 	end
 
-	local now, unow = rtctime.get()
+	local now = rtc_now()
 	if now == 0 then -- rtctime was not set?
 		return nil
 	end
-	now = now + unow * 1e-6
 	return math.floor(now / self.period_interval)
 end
 
@@ -83,6 +97,10 @@ function Wattmeter:time_changed()
 
 	-- invalidate period, so nothing takes this as a reference
 	self.period_energy_min = nil -- this is important, will be set on next rollover
+
+	for k,v in pairs(self.last_round) do
+		self.last_round[k] = 0
+	end
 end
 
 function Wattmeter:period_rollover(newindex)
@@ -146,6 +164,7 @@ end
 
 function Wattmeter:on_pulse()
 	local tmrnow = tmr.now() -- [us]
+	local now = rtc_now()
 
 	local increment = self:get_increment() -- [kWh]
 
@@ -167,11 +186,17 @@ function Wattmeter:on_pulse()
 	self.energy = self.energy + increment
 	self.lastpulse = tmrnow
 
-	-- update moving window
-	table.insert(self.pulse_history, tmrnow)
-	--while #self.pulse_history > self.window+1 do
-	--	table.remove(self.pulse_history, 1)
-	--end
+	-- update round increments
+	local pulseindex = round(self.energy / increment)
+	local round_increments = {}
+	for k,v in pairs(self.last_round) do
+		if pulseindex % k == 0 then
+			if v > 0 then
+				round_increments[k * increment] = now - v
+			end
+			self.last_round[k] = now
+		end
+	end
 
 	-- update stats for period
 	self.period_energy_max = self.energy
@@ -201,7 +226,7 @@ function Wattmeter:on_pulse()
 			dt,
 			self.is_absolute and self.energy or nil, -- only report if we have a reference
 			power,
-			power_windowed
+			round_increments
 		)
 	end
 end
