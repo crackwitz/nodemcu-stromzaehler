@@ -78,8 +78,14 @@ function mqtt_onmessage(client, topic, message)
 	end
 end
 
-function wattmeter.pulse_cb(energy, power, power_windowed)
+function wattmeter.pulse_cb(dt, energy, power, power_windowed)
 	if mqtt_client ~= nil then
+		if dt ~= nil then
+			mqtt_client:publish(
+				string.format("electricity/pulse_dt"),
+				string.format("%.6f", dt),
+				0, 0)
+		end
 		if energy ~= nil then
 			mqtt_client:publish(
 				string.format("electricity/energy"),

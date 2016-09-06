@@ -21,7 +21,7 @@ Wattmeter = {
 	period_energy_min = nil, -- updated at rollover, refers to first pulse of previous period
 
 	-- callbacks per pulse and per period
-	pulse_cb = nil, -- energy, power, power_decimated
+	pulse_cb = nil, -- dt, energy, power, power_decimated
 	period_cb = nil, -- period, emax, pmin, pmax, pmean
 }
 Wattmeter.__index = Wattmeter
@@ -198,12 +198,12 @@ function Wattmeter:on_pulse()
 
 		-- per-pulse callback
 		self.pulse_cb(
+			dt,
 			self.is_absolute and self.energy or nil, -- only report if we have a reference
 			power,
 			power_windowed
 		)
 	end
-
 end
 
 return Wattmeter
