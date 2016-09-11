@@ -69,7 +69,7 @@ end
 
 function wattmeter.period_cb(period, energy_max, power_min, power_max, power_mean)
 	print(string.format("period: E %.3f, P %.3f/%.3f/%.3f [W]", 
-		energy_max, power_min, power_mean, power_max
+		energy_max or -1, power_min or -1, power_mean or -1, power_max or -1
 	))
 
 	if graphite ~= nil then

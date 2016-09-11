@@ -161,7 +161,7 @@ function Wattmeter:period_rollover(newindex)
 
 		local energy_max = nil
 		if self.is_absolute then
-			energy_max = self.get_energy() - self.kwh_per_pulse -- subtract one pulse
+			energy_max = self:get_energy() - self.kwh_per_pulse -- subtract one pulse
 		end
 
 		if period_center ~= nil then
